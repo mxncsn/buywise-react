@@ -13,10 +13,11 @@ import ProjectDetail from "./components/ProjectDetail";
 
 function App() {
 
-  const API_URL = "https://your-backend.onrender.com";
+  // Correct usage of env variable (no quotes!)
+  const API_URL = process.env.REACT_APP_API_URL;
 
   // ---------------------------
-  // PROJECT STATE (now from backend)
+  // PROJECT STATE (from backend)
   // ---------------------------
   const [projects, setProjects] = useState([]);
   const [loadingProjects, setLoadingProjects] = useState(true);
@@ -27,32 +28,30 @@ function App() {
   useEffect(() => {
     const fetchProjects = async () => {
       try {
-        const response = await fetch(`${API_URL}/api/projects/${id}`);
+        const response = await fetch(`${API_URL}/api/projects`);
         const data = await response.json();
-        setProjects(data);  // populate state with backend data
-        setLoadingProjects(false); 
+        setProjects(data);
       } catch (err) {
         console.error('Failed to fetch projects:', err);
+      } finally {
+        setLoadingProjects(false);
       }
     };
-
-    fetchProjects();
-  }, []);
+    if (API_URL) fetchProjects();
+  }, []); // added API_URL to dependency array
 
   // ---------------------------
   // ADD NEW PROJECT (POST)
   // ---------------------------
-  // Kept available (not altering existing content/UI)
   const addProject = async (newProject) => {
     try {
-      const res = await fetch(`${API_URL}/api/projects/${id}`, {
+      const res = await fetch(`${API_URL}/api/projects`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newProject)
       });
       if (!res.ok) throw new Error("Failed to create project");
       const created = await res.json();
-      // Immediately update UI
       setProjects(prev => [...prev, created]);
     } catch (err) {
       console.error("Error adding project:", err);
@@ -62,30 +61,26 @@ function App() {
   // ---------------------------
   // UPDATE FUNCTION (PATCH)
   // ---------------------------
-  // Keeps your original function name and behavior (Change Status)
-  // but uses backend and updates local state using _id
   const updateStatus = async (id) => {
     try {
-      // Find current project
       const project = projects.find(p => p._id === id);
       if (!project) return;
 
-      // Determine next status
+      // Cycle status
       let nextStatus;
       if (project.status === "Pending") nextStatus = "In Progress...";
       else if (project.status === "In Progress...") nextStatus = "Completed";
-      else nextStatus = "Pending"; // cycle back
+      else nextStatus = "Pending";
 
-      // PATCH request to backend
       const response = await fetch(`${API_URL}/api/projects/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: nextStatus })
       });
 
+      if (!response.ok) throw new Error("Failed to update project");
       const updatedProject = await response.json();
 
-      // Update local state
       setProjects(prev =>
         prev.map(p => (p._id === updatedProject._id ? updatedProject : p))
       );
@@ -94,28 +89,24 @@ function App() {
     }
   };
 
-
   // ---------------------------
-  // DELETE FUNCTION (DELETE)
+  // DELETE FUNCTION
   // ---------------------------
   const deleteProject = async (id) => {
     try {
       const response = await fetch(`${API_URL}/api/projects/${id}`, {
         method: 'DELETE'
       });
-
-      if (response.status !== 204) {
-        throw new Error('Failed to delete project');
-      }
-
-      // Remove the deleted project from local state
+      if (response.status !== 204) throw new Error('Failed to delete project');
       setProjects(prev => prev.filter(p => p._id !== id));
     } catch (err) {
       console.error(err);
     }
   };
 
-  // existing theme loader (kept exactly)
+  // ---------------------------
+  // Theme loader
+  // ---------------------------
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme") || "dark";
     document.body.classList.add(savedTheme === "light" ? "light-mode" : "dark-mode");
@@ -125,7 +116,6 @@ function App() {
     <Router>
       <Header title="BuyWise AI" />
       <main>
-
         <Routes>
 
           {/* HOME */}
@@ -136,8 +126,6 @@ function App() {
                 leadText="AI-powered shopping assistant designed to help users compare prices, evaluate seller trustworthiness, and make smarter purchasing decisions with minimal effort."
               />
               <Features />
-
-              {/* PROJECT LIST (now receives backend data and functions) */}
               <ProjectList
                 projects={projects}
                 updateStatus={updateStatus}
